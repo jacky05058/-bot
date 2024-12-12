@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>作文批改助手</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    #header {
+      background-color: #4caf50;
+      color: white;
+      padding: 10px 20px;
+      text-align: left;
+      font-size: 18px;
+      font-weight: bold;
+    }
+    #header img {
+      height: 50px; /* 調整圖片高度 */
+    }
+    #header .university-name {
+      font-size: 40px; /* 單獨修改字體大小 */
+      font-weight: bold; /* 加粗字體 */
+    }
+    #main-container {
+      flex: 1;
+      display: flex;
+    }
+    #left-panel {
+      flex: 6; /* 左側表格占70%寬度 */
+      padding: 10px;
+      border-right: 1px solid #ddd;
+    }
+    #right-panel {
+      flex: 4; /* 右側聊天框占30%寬度 */
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+    }
+    #chat-box {
+      flex: 1;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 10px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+    }
+    .message {
+      margin-bottom: 10px;
+      padding: 10px;
+      border-radius: 5px;
+      max-width: 100%;
+      word-wrap: break-word;
+    }
+    .user {
+      background-color: #f0f8ff;
+      text-align: left; /* 文字靠左 */
+      margin-left: auto; /* 訊息框靠右 */
+    }
+    .teacher {
+      background-color: #e6ffe6;
+      text-align: left; /* 文字靠左 */
+      margin-right: auto; /* 訊息框靠左 */
+    }
+    #input-container {
+      display: flex;
+    }
+    #user-input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+    #send-button {
+      margin-left: 10px;
+      padding: 10px 20px;
+      background-color: #4caf50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #send-button:hover {
+      background-color: #45a049;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <img src="./images/image.png" alt="台中教育大學校徽">
+    <span class="university-name">基於情境脈絡人工智慧作文批改系統之開發與評估</span>
+  </div>
+  <div id="main-container">
+    <!-- 左側表格 -->
+    <div id="left-panel">
+      <h3>評分結果表</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>類別</th>
+            <th>內容</th>
+            <th>級分</th>
+          </tr>
+        </thead>
+        <tbody id="score-table">
+          <!-- 表格內容將由 JavaScript 動態生成 -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 右側聊天區 -->
+    <div id="right-panel">
+      <div id="chat-box"></div>
+      <div id="input-container">
+        <input type="text" id="user-input" placeholder="輸入作文或問題">
+        <button id="send-button">送出</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const chatbotId = "hNsnDuU3NeZFimZffkdi1"; // 替換為有效的 Chatbot ID
+    const apiKey = "703dde1c-c7ee-4ef1-a169-4eb3a1718ab2"; // 替換為有效的 API 密鑰
+    const apiUrl = "https://www.chatbase.co/api/v1/chat";
+
+    const chatBox = document.getElementById('chat-box');
+    const userInput = document.getElementById('user-input');
+    const sendButton = document.getElementById('send-button');
+    const scoreTable = document.getElementById('score-table');
+
+    const categories = [
+      "依據題旨選取材料",
+      "文章結構完整度",
+      "遣詞造句與語法運用",
+      "錯別字與標點符號",
+      "總評",
+    ];
+
+    function appendMessage(content, sender) {
+      let formattedContent = content.replace(/。/g, '。<br>'); // 句號後換行
+      const div = document.createElement('div');
+      div.innerHTML = sender === 'teacher' ? formattedContent : content;
+      div.classList.add('message', sender);
+      chatBox.appendChild(div);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function parseBotResponse(responseText) {
+      const scores = [];
+      const gradeMatches = responseText.match(/[一二三四五六七八九十]級分/g) || [];
+      const improvementMatch = responseText.match(/改進方向[:：]\s*([\s\S]+)/); // 提取改進方向
+
+      const contentPatterns = {
+        "依據題旨選取材料": /依據題旨選取材料[:：]\s*([\s\S]*?)\n/,
+        "文章結構完整度": /文章結構完整度[:：]\s*([\s\S]*?)\n/,
+        "遣詞造句與語法運用": /遣詞造句與語法運用[:：]\s*([\s\S]*?)\n/,
+        "錯別字與標點符號": /錯別字與標點符號[:：]\s*([\s\S]*?)\n/,
+        "總評": /總評[:：]\s*([\s\S]*?)\n/,
+      };
+
+      categories.forEach((category, index) => {
+        let content = '-'; // 預設為空白
+        const grade = gradeMatches[index] || ''; // 如果無法匹配級分，保持空白
+
+        if (category === "總評") {
+          const improvementContent = improvementMatch ? improvementMatch[1]?.trim() : '未提供改進方向';
+          content = `<strong>改進方向:</strong> ${improvementContent}`; // 僅顯示改進方向
+        } else if (contentPatterns[category]) {
+          const match = responseText.match(contentPatterns[category]);
+          content = match ? match[1]?.trim() : ''; // 無匹配則保持空白
+        }
+
+        scores.push({ category, content, grade });
+      });
+
+      return scores;
+    }
+
+    function updateScoreTable(scores) {
+      scoreTable.innerHTML = ""; // 清空表格
+      scores.forEach(({ category, content, grade }) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${category}</td>
+          <td>${content}</td>
+          <td>${grade}</td>
+        `;
+        scoreTable.appendChild(row);
+      });
+    }
+
+    async function sendMessage() {
+      const message = userInput.value.trim();
+      if (!message) return;
+
+      appendMessage(message, 'user');
+      userInput.value = '';
+
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            chatbotId,
+            messages: [{ content: message, role: 'user' }],
+            stream: false,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          appendMessage(`錯誤: ${errorData.message || "未知錯誤"}`, 'teacher');
+          return;
+        }
+
+        const data = await response.json();
+        appendMessage(data.text, 'teacher');
+
+        // 解析評分並更新表格
+        const scores = parseBotResponse(data.text);
+        updateScoreTable(scores);
+      } catch (err) {
+        console.error('API 請求失敗:', err);
+        appendMessage('無法連接機器人，請稍後再試！', 'teacher');
+      }
+    }
+
+    sendButton.addEventListener('click', sendMessage);
+    userInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+  </script>
+</body>
+</html>
